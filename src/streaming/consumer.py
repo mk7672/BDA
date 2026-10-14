@@ -17,31 +17,36 @@ def save_review_to_hdfs(review):
     path = f"{HDFS_DIRECTORY}/reviews-{date}.jsonl"
     encoded_path = quote(path, safe="/")
     url = f"{HDFS_URL}/webhdfs/v1{encoded_path}"
+
     review_line = (
         json.dumps(review, ensure_ascii=False) + "\n"
     ).encode("utf-8")
 
-    # Try to create today's JSONL file.
-    response = requests.put(
+    # Check whether the daily file already exists.
+    check = requests.get(
         url,
-        params={"op": "CREATE", "overwrite": "false"},
-        allow_redirects=False,
+        params={"op": "GETFILESTATUS"},
         timeout=15,
     )
 
-    if response.status_code in (307, 308):
-        upload_url = response.headers["Location"]
+    if check.status_code == 404:
+        # Create the file and write the first review.
+        response = requests.put(
+            url,
+            params={"op": "CREATE", "overwrite": "false"},
+            allow_redirects=False,
+            timeout=15,
+        )
 
-        # Docker's "datanode" hostname may not resolve on Windows.
-        parts = urlsplit(upload_url)
-        if parts.hostname == "datanode":
-            upload_url = urlunsplit((
-                parts.scheme,
-                f"localhost:{parts.port}" if parts.port else "localhost",
-                parts.path,
-                parts.query,
-                parts.fragment,
-            ))
+        if response.status_code not in (307, 308):
+            response.raise_for_status()
+            raise RuntimeError(
+                f"Unexpected HDFS CREATE response: "
+                f"{response.status_code} {response.text}"
+            )
+
+        upload_url = response.headers["Location"]
+        upload_url = fix_datanode_url(upload_url)
 
         upload = requests.put(
             upload_url,
@@ -52,44 +57,55 @@ def save_review_to_hdfs(review):
         upload.raise_for_status()
         return path
 
-    # The file may already exist, so append this review.
-    if response.status_code not in (200, 201):
-        response.raise_for_status()
-        raise RuntimeError(
-            f"Unexpected HDFS CREATE response: "
-            f"{response.status_code} {response.text}"
-        )
+    check.raise_for_status()
 
-    append_response = requests.post(
+    # Append the review to the existing daily file.
+    response = requests.post(
         url,
         params={"op": "APPEND"},
         allow_redirects=False,
         timeout=15,
     )
-    append_response.raise_for_status()
 
-    if append_response.status_code in (307, 308):
-        upload_url = append_response.headers["Location"]
-
-        parts = urlsplit(upload_url)
-        if parts.hostname == "datanode":
-            upload_url = urlunsplit((
-                parts.scheme,
-                f"localhost:{parts.port}" if parts.port else "localhost",
-                parts.path,
-                parts.query,
-                parts.fragment,
-            ))
-
-        upload = requests.post(
-            upload_url,
-            data=review_line,
-            headers={"Content-Type": "application/octet-stream"},
-            timeout=15,
+    if response.status_code not in (307, 308):
+        response.raise_for_status()
+        raise RuntimeError(
+            f"Unexpected HDFS APPEND response: "
+            f"{response.status_code} {response.text}"
         )
-        upload.raise_for_status()
+
+    upload_url = fix_datanode_url(response.headers["Location"])
+
+    upload = requests.post(
+        upload_url,
+        data=review_line,
+        headers={"Content-Type": "application/octet-stream"},
+        timeout=15,
+    )
+    upload.raise_for_status()
 
     return path
+
+
+def fix_datanode_url(url):
+    parts = urlsplit(url)
+
+    # Make the DataNode reachable from Windows.
+    if parts.hostname == "datanode":
+        netloc = (
+            f"localhost:{parts.port}"
+            if parts.port
+            else "localhost"
+        )
+        return urlunsplit((
+            parts.scheme,
+            netloc,
+            parts.path,
+            parts.query,
+            parts.fragment,
+        ))
+
+    return url
 
 
 def main():
@@ -104,11 +120,15 @@ def main():
         ),
     )
 
-    print(f"Listening for reviews on '{TOPIC}'... Press Ctrl+C to stop.")
+    print(
+        f"Listening for reviews on '{TOPIC}'... "
+        "Press Ctrl+C to stop."
+    )
 
     try:
         for message in consumer:
             review = message.value
+
             print("Received review:")
             print(json.dumps(review, indent=2))
 
