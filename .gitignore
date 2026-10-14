@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Virtual environments (ours lives outside the repo, but just in case)
+venv/
+.venv/
+env/
+
+# Secrets and local config
+.env
+*.pem
+*.key
+
+# Datasets: never commit raw or processed data (document how to download instead)
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Trained model artifacts: generated locally, not committed unless the team decides otherwise
+models/*.joblib
+models/*.pkl
+
+# Editor / OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
