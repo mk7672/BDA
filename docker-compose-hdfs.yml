@@ -1,0 +1,45 @@
+services:
+  namenode:
+    image: apache/hadoop:3.4.1
+    container_name: bda-namenode
+    hostname: namenode
+    user: "0:0"
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - "mkdir -p /tmp/hadoop-root/dfs/name && chmod -R 777 /tmp/hadoop-root/dfs/name && hdfs namenode"
+    ports:
+      - "9870:9870"
+      - "9000:9000"
+    volumes:
+      - namenode_data:/tmp/hadoop-root/dfs/name
+      - ./hadoop-config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml:ro
+      - ./hadoop-config/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml:ro
+    networks:
+      - bda-network
+
+  datanode:
+    image: apache/hadoop:3.4.1
+    container_name: bda-datanode
+    hostname: datanode
+    user: "0:0"
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - "mkdir -p /tmp/hadoop-root/dfs/data && chmod -R 777 /tmp/hadoop-root/dfs/data && hdfs datanode"
+    depends_on:
+      - namenode
+    ports:
+      - "9864:9864"
+    volumes:
+      - datanode_data:/tmp/hadoop-root/dfs/data
+      - ./hadoop-config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml:ro
+      - ./hadoop-config/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml:ro
+    networks:
+      - bda-network
+
+volumes:
+  namenode_data:
+  datanode_data:
+
+networks:
+  bda-network:
+    name: bda-hdfs-network
