@@ -48,4 +48,20 @@ def extract_keywords(review_text: str, pipeline=None, top_k: int = 5) -> list[st
         candidates.append((phrase, float(score)))
 
     candidates.sort(key=lambda item: (-item[1], item[0]))
-    return [phrase for phrase, _ in candidates[:top_k]]
+
+    # Prefer an extracted phrase to separate unigrams it already contains.
+    selected: list[str] = []
+    for phrase, _ in candidates:
+        words = phrase.split()
+        if len(words) == 1 and any(phrase in chosen.split() for chosen in selected):
+            continue
+        if len(words) > 1:
+            selected = [
+                chosen
+                for chosen in selected
+                if not (len(chosen.split()) == 1 and chosen in words)
+            ]
+        selected.append(phrase)
+        if len(selected) >= top_k:
+            break
+    return selected[:top_k]

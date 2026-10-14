@@ -1,3 +1,5 @@
-Real-Time Customer Review Sentiment Analysis
+# Real-Time Customer Review Sentiment Analysis
 
-This project processes customer reviews in real time using Kafka, stores review data in Hadoop HDFS, classifies sentiment using NLP, and displays prioritized negative reviews on a dashboard.
+This project is intended to process customer reviews through Kafka, store review data in Hadoop HDFS, classify sentiment with NLP, and display prioritized negative reviews on a dashboard.
+
+The ML/NLP implementation, data preparation steps, evaluation results, and integration interface are documented in [docs/ml_module.md](docs/ml_module.md).
