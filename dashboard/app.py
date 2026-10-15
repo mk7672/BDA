@@ -1,5 +1,9 @@
+
 import streamlit as st
 import pandas as pd
+
+from src.priority.priority_engine import assign_priority
+
 
 st.set_page_config(
     page_title="Customer Review Sentiment Dashboard",
@@ -65,6 +69,16 @@ reviews = [
 ]
 
 df = pd.DataFrame(reviews)
+
+df["priority"] = df.apply(
+    lambda row: assign_priority(
+        sentiment=row["sentiment"],
+        rating=int(row["rating"]),
+        keywords=row["keywords"],
+    ),
+    axis=1,
+)
+
 
 st.sidebar.header("Review Filters")
 
